@@ -1,0 +1,69 @@
+---
+- hosts: dockerjenkins
+  become: true
+  tasks:
+    - name: Install aptitude using apt
+      apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+
+    - name: Install required system packages
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'python3-pip', 'virtualenv', 'python3-setuptools']
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu bionic stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt: update_cache=yes name=docker-ce state=latest
+
+    - name: Install Docker Module for Python
+      pip:
+        name: docker
+
+    - name: Get running containers
+      docker_host_info:
+        containers: yes
+      register: docker_info
+
+    - name: Stop running containers
+      docker_container:
+        name: "{{ item }}"
+        state: stopped
+      loop: "{{ docker_info.containers | map(attribute='Id') | list }}"
+
+    - name: Copy Dockerfile
+      copy:
+        src: Dockerfile
+        dest: /home/ubuntu/Dockerfile
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copy plugins.txt
+      copy:
+        src: plugins.txt
+        dest: /home/ubuntu/plugins.txt
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Copy casc.yaml
+      copy:
+        src: casc.yaml
+        dest: /home/ubuntu/casc.yaml
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+
+    - name: Build the docker image
+      command: docker build -t jenkins:jcasc /home/ubuntu/
+
+    - name: Start the docker container
+      command: docker run -d --name jenkins --rm -p 8080:8080 jenkins:jcasc
