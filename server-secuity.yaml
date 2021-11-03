@@ -1,0 +1,22 @@
+--
+- hosts: dockerjenkins
+  become: true
+  become_method: sudo
+  become_user: root
+  gather_facts: no
+  tasks:
+    - name: Install aptitude using apt
+      apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+​
+    - name: "Install required system packages for Fail2Ban & ClamAV"
+      apt: name={{ item }} state=latest update_cache=yes
+      loop: [ 'clamav', 'clamav-freshclam ', 'clamav-daemon', 'fail2ban']
+​
+    - name: Copy script collect_security.sh
+      copy: src=security.sh dest=/home/root mode=0777
+    - name: Running the script
+      command: sh /home/root/security.sh
+
+    - name: find the output file
+      shell: (cd /home/root; find collect*.txt)
+      register: files_to_copy
